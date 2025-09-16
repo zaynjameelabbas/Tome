@@ -1,7 +1,7 @@
 // Book Details Screen - Dynamic route for individual books
 // File: app/book/[id].tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,10 +9,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  StatusBar
+  StatusBar,
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { getBookById, getRecommendations } from '../../src/services/googleBooksApi';
+import { Book } from '../../src/types';
 
 // Get screen dimensions
 const { width } = Dimensions.get('window');
@@ -23,36 +27,43 @@ export default function BookDetailsScreen() {
   const router = useRouter();
   
   const [readingStatus, setReadingStatus] = useState('Want to read');
-  
-  // Mock book data (in real app, you'd fetch based on the id parameter)
-  const book = {
-    id: id,
-    title: 'The Metamorphosis',
-    author: 'Franz Kafka',
-    genres: ['Classics', 'Fantasy', 'Fiction'],
-    rating: 4.8,
-    totalRatings: 737,
-    description: `"As Gregor Samsa awoke one morning from uneasy dreams he found himself transformed in his bed into a gigantic insect. He was lying on his hard, as it was armour-plated, back and when he lifted his head a little he could see his dome-like brown belly divided into stiff arched segments..."`,
-    publishedDate: '1915',
-    pages: 201,
-    language: 'English'
-  };
+  const [book, setBook] = useState<Book | null>(null);
+  const [relatedBooks, setRelatedBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock review data
-  const review = {
-    user: '@alfredo_',
-    rating: 5,
-    text: 'I recently delved into Franz Kafka\'s masterpiece, "The Metamorphosis," and I was utterly captivated from start to finish...',
-    date: '2 weeks ago'
-  };
+  // Load book data when component mounts
+  useEffect(() => {
+    if (id) {
+      loadBookData(id);
+    }
+  }, [id]);
 
-  // Mock "readers also read" books
-  const relatedBooks = [
-    { id: '1', title: 'The Trial', author: 'Franz Kafka' },
-    { id: '2', title: 'The Castle', author: 'Franz Kafka' },
-    { id: '3', title: 'Amerika', author: 'Franz Kafka' },
-    { id: '4', title: 'In the Penal Colony', author: 'Franz Kafka' }
-  ];
+  const loadBookData = async (bookId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch the main book data
+      const bookData = await getBookById(bookId);
+      
+      if (bookData) {
+        setBook(bookData);
+        
+        // Load recommendations based on this book
+        const recommendations = await getRecommendations(bookData);
+        setRelatedBooks(recommendations);
+      } else {
+        setError('Book not found');
+      }
+      
+    } catch (error) {
+      console.error('Error loading book:', error);
+      setError('Failed to load book details');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleStatusChange = () => {
     const statuses = ['Want to read', 'Reading', 'Read'];
@@ -64,6 +75,34 @@ export default function BookDetailsScreen() {
   const handleBackPress = () => {
     router.back();
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f0f0f" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#00674F" />
+          <Text style={styles.loadingText}>Loading book details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error || !book) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f0f0f" />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'Book not found'}</Text>
+          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,77 +124,78 @@ export default function BookDetailsScreen() {
         
         {/* Book Cover and Main Info */}
         <View style={styles.bookSection}>
-          <View style={styles.bookCover} />
+          {book.coverUrl ? (
+            <Image source={{ uri: book.coverUrl }} style={styles.bookCover} />
+          ) : (
+            <View style={styles.bookCover} />
+          )}
           
           <View style={styles.bookInfo}>
             <Text style={styles.bookTitle}>{book.title}</Text>
             <Text style={styles.bookAuthor}>{book.author}</Text>
             
             {/* Genre Tags */}
-            <View style={styles.genreContainer}>
-              {book.genres.map((genre, index) => (
-                <View key={index} style={styles.genreTag}>
-                  <Text style={styles.genreText}>{genre}</Text>
-                </View>
-              ))}
-            </View>
+            {book.categories.length > 0 && (
+              <View style={styles.genreContainer}>
+                {book.categories.slice(0, 3).map((genre, index) => (
+                  <View key={index} style={styles.genreTag}>
+                    <Text style={styles.genreText}>{genre}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             
             {/* Rating */}
-            <View style={styles.ratingContainer}>
-              <Text style={styles.ratingStars}>★ {book.rating}</Text>
-              <Text style={styles.ratingCount}>({book.totalRatings})</Text>
-            </View>
+            {book.rating && (
+              <View style={styles.ratingContainer}>
+                <Text style={styles.ratingStars}>★ {book.rating.toFixed(1)}</Text>
+                {book.ratingsCount && (
+                  <Text style={styles.ratingCount}>({book.ratingsCount})</Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
 
         {/* Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Info</Text>
-          <Text style={styles.description}>{book.description}</Text>
-        </View>
-
-        {/* Reviews Section */}
-        <View style={styles.section}>
-          <View style={styles.reviewsHeader}>
-            <Text style={styles.sectionTitle}>Reviews</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View all</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.reviewCard}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewerInfo}>
-                <View style={styles.reviewerAvatar} />
-                <Text style={styles.reviewerName}>{review.user}</Text>
-              </View>
-              <View style={styles.reviewRating}>
-                {[1,2,3,4,5].map((star) => (
-                  <Text key={star} style={styles.reviewStar}>
-                    {star <= review.rating ? '★' : '☆'}
-                  </Text>
-                ))}
-              </View>
+        {book.summary && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Info</Text>
+            <Text style={styles.description}>{book.summary}</Text>
+            
+            {/* Additional book details */}
+            <View style={styles.detailsContainer}>
+              {book.publishedDate && (
+                <Text style={styles.detailText}>Published: {book.publishedDate}</Text>
+              )}
+              {book.pageCount && (
+                <Text style={styles.detailText}>Pages: {book.pageCount}</Text>
+              )}
             </View>
-            <Text style={styles.reviewText}>{review.text}</Text>
           </View>
-        </View>
+        )}
 
         {/* Readers Also Read */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Readers also read</Text>
-          <View style={styles.relatedBooksGrid}>
-            {relatedBooks.map((relatedBook) => (
-              <TouchableOpacity 
-                key={relatedBook.id} 
-                style={styles.relatedBookCard}
-                onPress={() => router.push(`/book/${relatedBook.id}`)}
-              >
-                <View style={styles.relatedBookCover} />
-              </TouchableOpacity>
-            ))}
+        {relatedBooks.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Readers also read</Text>
+            <View style={styles.relatedBooksGrid}>
+              {relatedBooks.slice(0, 4).map((relatedBook) => (
+                <TouchableOpacity 
+                  key={relatedBook.id} 
+                  style={styles.relatedBookCard}
+                  onPress={() => router.push(`/book/${relatedBook.id}`)}
+                >
+                  {relatedBook.coverUrl ? (
+                    <Image source={{ uri: relatedBook.coverUrl }} style={styles.relatedBookCover} />
+                  ) : (
+                    <View style={styles.relatedBookCover} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -392,5 +432,55 @@ const styles = StyleSheet.create({
     height: ((width - 72) / 4) * 1.5,
     backgroundColor: '#2a2a2a',
     borderRadius: 6,
+  },
+
+  // Loading states
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+
+  loadingText: {
+    color: '#888888',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+
+  // Error states
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+
+  backButtonText: {
+    color: '#00674F',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Additional details
+  detailsContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a2a',
+  },
+
+  detailText: {
+    color: '#888888',
+    fontSize: 14,
+    marginBottom: 8,
   },
 });

@@ -7,121 +7,150 @@ import {
   TouchableOpacity,
   FlatList,        // Added for horizontal scrolling
   Dimensions,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { signOutUser } from '../../src/services/auth';
 
 // Get screen dimensions
 const { width } = Dimensions.get('window');
 
 export default function LibraryTab() {
-    const router = useRouter();
-    // Three reading categories - each gets its own full row
-    const readingCategories = [
-        { 
-        title: 'Want to read', 
-        count: 7,
-        books: Array.from({length: 8}, (_, i) => ({ id: `want-${i}`, title: `Book ${i+1}` }))
-        },
-        { 
-        title: 'Reading', 
-        count: 2,
-        books: Array.from({length: 5}, (_, i) => ({ id: `reading-${i}`, title: `Book ${i+1}` }))
-        },
-        { 
-        title: 'Read', 
-        count: 15,
-        books: Array.from({length: 20}, (_, i) => ({ id: `read-${i}`, title: `Book ${i+1}` }))
-        },
-    ];
 
-    // Reading goal
-    const readingGoal = {
-        year: 2025,
-        current: 6,
-        target: 20,
-        endDate: '1st Jan/26',
-        percentage: 30
-    };
+    const handleLogout = () => {
+        Alert.alert(
+          'Sign Out',
+          'Are you sure you want to sign out?',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Sign Out',
+              style: 'destructive',
+              onPress: async () => {
+                const result = await signOutUser();
+                if (result.success) {
+                  // Navigation will be handled automatically by the auth state listener
+                } else {
+                  Alert.alert('Error', 'Failed to sign out');
+                }
+              },
+            },
+          ]
+        );
+      };
 
-    // Render individual book for horizontal scroll (like home page)
-    const renderBook = ({ item, index }: { item: any, index: number }) => (
-        <TouchableOpacity 
-            style={[styles.bookCard, { marginLeft: index === 0 ? 24 : 12 }]}
-            onPress={() => router.push(`/book/${item.id}`)}
-        >
-        <View style={styles.bookCover} />
-        <Text style={styles.bookTitle} numberOfLines={2}>Sample Book Title</Text>
-        <Text style={styles.bookAuthor} numberOfLines={1}>Author Name</Text>
+  // Three reading categories - each gets its own full row
+  const readingCategories = [
+    { 
+      title: 'Want to read', 
+      count: 7,
+      books: Array.from({length: 8}, (_, i) => ({ id: `want-${i}`, title: `Book ${i+1}` }))
+    },
+    { 
+      title: 'Reading', 
+      count: 2,
+      books: Array.from({length: 5}, (_, i) => ({ id: `reading-${i}`, title: `Book ${i+1}` }))
+    },
+    { 
+      title: 'Read', 
+      count: 15,
+      books: Array.from({length: 20}, (_, i) => ({ id: `read-${i}`, title: `Book ${i+1}` }))
+    },
+  ];
+
+  // Reading goal
+  const readingGoal = {
+    year: 2025,
+    current: 6,
+    target: 20,
+    endDate: '1st Jan/26',
+    percentage: 30
+  };
+
+  // Render individual book for horizontal scroll (like home page)
+  const renderBook = ({ item, index }: { item: any, index: number }) => (
+    <TouchableOpacity style={[styles.bookCard, { marginLeft: index === 0 ? 24 : 12 }]}>
+      <View style={styles.bookCover} />
+      <Text style={styles.bookTitle} numberOfLines={2}>Sample Book Title</Text>
+      <Text style={styles.bookAuthor} numberOfLines={1}>Author Name</Text>
+    </TouchableOpacity>
+  );
+
+  // Render each category as a section with horizontal scroll
+  const renderCategoryRow = (category: any, index: number) => (
+    <View key={index} style={styles.categorySection}>
+      <View style={styles.categoryHeader}>
+        <Text style={styles.categoryTitle}>{category.title}</Text>
+        <Text style={styles.categoryCount}>{category.count} Books</Text>
+      </View>
+      
+      {/* Horizontal scrolling books list */}
+      <FlatList
+        data={category.books}
+        renderItem={renderBook}
+        keyExtractor={(item) => item.id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalList}
+      />
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      
+      {/* Header with search and logout */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.searchButton}>
+          <Text style={styles.searchIcon}>🔍</Text>
         </TouchableOpacity>
-    );
-
-    // Render each category as a section with horizontal scroll
-    const renderCategoryRow = (category: any, index: number) => (
-        <View key={index} style={styles.categorySection}>
-        <View style={styles.categoryHeader}>
-            <Text style={styles.categoryTitle}>{category.title}</Text>
-            <Text style={styles.categoryCount}>{category.count} Books</Text>
-        </View>
         
-        {/* Horizontal scrolling books list */}
-        <FlatList
-            data={category.books}
-            renderItem={renderBook}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-        />
-        </View>
-    );
+        {/* Logout button */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
 
-    return (
-        <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Search icon */}
-        <View style={styles.header}>
-            <TouchableOpacity style={styles.searchButton}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            </TouchableOpacity>
+        {/* Reading category rows */}
+        <View style={styles.categoriesSection}>
+          {readingCategories.map(renderCategoryRow)}
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Reading Goals */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Reading goals</Text>
+          
+          <View style={styles.goalCard}>
+            <View style={styles.goalHeader}>
+              <View style={styles.goalTextContainer}>
+                <Text style={styles.goalTitle}>{readingGoal.year} Reading Challenge</Text>
+                <Text style={styles.goalSubtext}>
+                  {readingGoal.current} of {readingGoal.target} • Ends {readingGoal.endDate}
+                </Text>
+              </View>
+              <View style={styles.goalIcon}>
+                <Text style={styles.goalIconText}>📊</Text>
+              </View>
+            </View>
             
-            {/* Reading category rows */}
-            <View style={styles.categoriesSection}>
-            {readingCategories.map(renderCategoryRow)}
+            <View style={styles.progressContainer}>
+              <Text style={styles.progressText}>{readingGoal.percentage}%</Text>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${readingGoal.percentage}%` }]} />
+              </View>
             </View>
+          </View>
+        </View>
 
-            {/* Reading Goals */}
-            <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reading goals</Text>
-            
-            <View style={styles.goalCard}>
-                <View style={styles.goalHeader}>
-                <View style={styles.goalTextContainer}>
-                    <Text style={styles.goalTitle}>{readingGoal.year} Reading Challenge</Text>
-                    <Text style={styles.goalSubtext}>
-                    {readingGoal.current} of {readingGoal.target} • Ends {readingGoal.endDate}
-                    </Text>
-                </View>
-                <View style={styles.goalIcon}>
-                    <Text style={styles.goalIconText}>📊</Text>
-                </View>
-                </View>
-                
-                <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>{readingGoal.percentage}%</Text>
-                <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${readingGoal.percentage}%` }]} />
-                </View>
-                </View>
-            </View>
-            </View>
-
-        </ScrollView>
-        </SafeAreaView>
-    );
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -130,9 +159,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f0f0f',
   },
 
-  // Header with search
+  // Header with search - updated to flex row
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingLeft: 24,
+    paddingRight: 24,
     paddingVertical: 16,
   },
 
@@ -146,6 +179,22 @@ const styles = StyleSheet.create({
   searchIcon: {
     fontSize: 16,
     color: '#ffffff',
+  },
+
+  // Logout button
+  logoutButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+
+  logoutText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    fontWeight: '500',
   },
 
   content: {

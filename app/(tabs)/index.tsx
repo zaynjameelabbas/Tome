@@ -1,8 +1,8 @@
-// Library screen inspired by Goodreads dark theme layout
-// This recreates the card-based, sectioned design with horizontal scrolling
+// Home screen with real Google Books API data integration
+// Shows "Did you read today?", featured books, and popular reads sections
 
 // React import for component creation
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 // React Native core components
 import { 
@@ -12,25 +12,56 @@ import {
   ScrollView,     // Main vertical scroll
   FlatList,       // For horizontal book lists
   TouchableOpacity,
-  Dimensions
+  Dimensions,
+  Image,          // For real book covers
+  ActivityIndicator // For loading states
 } from 'react-native';
 
 // SafeAreaView ensures content doesn't go under notch/status bar
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-// Import our types
-import { Book } from '../../src/types';
-
 import { useRouter } from 'expo-router';
 
+// Import our Google Books API service and types
+import { getPopularBooks, searchBooks } from '../../src/services/googleBooksApi';
+import { Book } from '../../src/types';
 
 // Get screen dimensions for responsive design
 const { width } = Dimensions.get('window');
 
-// Main Library screen component matching Goodreads layout
+// Main Home screen component matching Goodreads layout
 export default function LibraryScreen() {
   
   const router = useRouter();
+  
+  // State for real book data
+  const [featuredBooks, setFeaturedBooks] = useState<Book[]>([]);
+  const [popularBooks, setPopularBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load real book data when component mounts
+  useEffect(() => {
+    loadBookData();
+  }, []);
+
+  const loadBookData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load featured books (literary fiction and classics)
+      const featured = await searchBooks('literary fiction classics', 6);
+      setFeaturedBooks(featured);
+      
+      // Load popular books
+      const popular = await getPopularBooks();
+      setPopularBooks(popular);
+      
+    } catch (error) {
+      console.error('Error loading book data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   // Mock data for "Did you read today?" section
   const todayReading = {
     hasRead: false,
@@ -44,81 +75,42 @@ export default function LibraryScreen() {
     }
   };
 
-  // Mock data for "You may be interested" - larger featured books
-  const featuredBooks: Book[] = [
-    {
-      id: 'feat1',
-      title: 'Steal Like an Artist',
-      author: 'Austin Kleon',
-      categories: ['Creativity', 'Art'],
-      dateAdded: new Date(),
-      rating: 4,
-    },
-    {
-      id: 'feat2', 
-      title: 'The Creative Act: A Way of Being',
-      author: 'Rick Rubin',
-      categories: ['Creativity', 'Philosophy'],
-      dateAdded: new Date(),
-      rating: 5,
-    },
-    {
-      id: 'feat3',
-      title: 'On Writing',
-      author: 'Stephen King',
-      categories: ['Writing', 'Memoir'],
-      dateAdded: new Date(),
-      rating: 5,
-    }
-  ];
+  // Reading goal data
+  const readingGoal = {
+    year: 2025,
+    current: 6,
+    target: 20,
+    endDate: '1st Jan/26',
+    percentage: 30
+  };
 
-  // Mock data for "Popular reads" - smaller horizontal scroll
-  const popularBooks: Book[] = [
-    {
-      id: 'pop1',
-      title: 'Frank Herbert\'s Dune',
-      author: 'Frank Herbert',
-      categories: ['Science Fiction'],
-      dateAdded: new Date(),
-      rating: 5,
-    },
-    {
-      id: 'pop2',
-      title: 'The Lion, The Witch and the Wardrobe',
-      author: 'C.S. Lewis',
-      categories: ['Fantasy', 'Classic'],
-      dateAdded: new Date(),
-      rating: 4,
-    },
-    {
-      id: 'pop3',
-      title: 'Project Hail Mary',
-      author: 'Andy Weir',
-      categories: ['Science Fiction'],
-      dateAdded: new Date(),
-      rating: 5,
-    }
-  ];
-
-  // Render large featured book card
+  // Render large featured book card with real data
   const renderFeaturedBook = ({ item, index }: { item: Book; index: number }) => (
     <TouchableOpacity 
       style={[styles.featuredCard, { marginLeft: index === 0 ? 24 : 12 }]}
-      onPress={() => router.push(`/book/${item.id}`)}  // Add this line
+      onPress={() => router.push(`/book/${item.id}`)}
     >
-      <View style={styles.featuredCover} />
+      {item.coverUrl ? (
+        <Image source={{ uri: item.coverUrl }} style={styles.featuredCover} />
+      ) : (
+        <View style={styles.featuredCover} />
+      )}
       <Text style={styles.featuredTitle} numberOfLines={3}>{item.title}</Text>
       <Text style={styles.featuredAuthor} numberOfLines={1}>{item.author}</Text>
     </TouchableOpacity>
   );
 
-  // Render smaller popular book card
+  // Render smaller popular book card with real data
   const renderPopularBook = ({ item, index }: { item: Book; index: number }) => (
     <TouchableOpacity 
       style={[styles.popularCard, { marginLeft: index === 0 ? 24 : 12 }]}
-      onPress={() => router.push(`/book/${item.id}`)}  // Add this line
+      onPress={() => router.push(`/book/${item.id}`)}
     >
-      <View style={styles.popularCover} />
+      {item.coverUrl ? (
+        <Image source={{ uri: item.coverUrl }} style={styles.popularCover} />
+      ) : (
+        <View style={styles.popularCover} />
+      )}
       <Text style={styles.popularTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={styles.popularAuthor} numberOfLines={1}>{item.author}</Text>
     </TouchableOpacity>
@@ -172,30 +164,44 @@ export default function LibraryScreen() {
           </View>
         </View>
 
-        {/* "You may be interested" Section */}
+        {/* "You may be interested" Section with real data */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>You may be interested</Text>
-          <FlatList
-            data={featuredBooks}
-            renderItem={renderFeaturedBook}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#00674F" />
+              <Text style={styles.loadingText}>Loading books...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={featuredBooks}
+              renderItem={renderFeaturedBook}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            />
+          )}
         </View>
 
-        {/* "Popular reads" Section */}
+        {/* "Popular reads" Section with real data */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Popular reads</Text>
-          <FlatList
-            data={popularBooks}
-            renderItem={renderPopularBook}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#00674F" />
+              <Text style={styles.loadingText}>Loading books...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={popularBooks}
+              renderItem={renderPopularBook}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            />
+          )}
         </View>
 
       </ScrollView>
@@ -436,5 +442,20 @@ const styles = StyleSheet.create({
   popularAuthor: {
     color: '#888888',
     fontSize: 10,
+  },
+
+  // Loading states
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+
+  loadingText: {
+    color: '#888888',
+    fontSize: 14,
+    marginLeft: 8,
   },
 });

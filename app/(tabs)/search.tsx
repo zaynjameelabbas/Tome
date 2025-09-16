@@ -1,7 +1,7 @@
-// Search screen with recommendations, popular books, and categories
-// Matches home page styling with horizontal scrolling sections
+// Search screen with real Google Books API integration
+// Now fetches actual book data instead of mock data
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -10,11 +10,16 @@ import {
   TouchableOpacity,
   ScrollView,
   FlatList,
-  Dimensions
+  Dimensions,
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { useRouter } from 'expo-router';
+
+// Import our Google Books API service
+import { searchBooks, getPopularBooks } from '../../src/services/googleBooksApi';
+import { Book } from '../../src/types';
 
 // Get screen dimensions
 const { width } = Dimensions.get('window');
@@ -22,63 +27,61 @@ const { width } = Dimensions.get('window');
 export default function SearchScreen() {
   
   const [searchQuery, setSearchQuery] = useState('');
-  const router = useRouter();
-  
-  // Recommendations based on recently read books
-  const recommendedBooks = [
-    {
-      id: 'rec1',
-      title: 'The Stranger',
-      author: 'Albert Camus',
-      reason: 'Because you read The Metamorphosis',
-    },
-    {
-      id: 'rec2',
-      title: '1984',
-      author: 'George Orwell',
-      reason: 'Readers of Kafka also enjoyed',
-    },
-    {
-      id: 'rec3',
-      title: 'The Trial',
-      author: 'Franz Kafka',
-      reason: 'More by Franz Kafka',
-    },
-    {
-      id: 'rec4',
-      title: 'Brave New World',
-      author: 'Aldous Huxley',
-      reason: 'Similar themes',
-    }
-  ];
+  const [searchResults, setSearchResults] = useState<Book[]>([]);
+  const [popularBooks, setPopularBooks] = useState<Book[]>([]);
+  const [recommendedBooks, setRecommendedBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [categoryBooks, setCategoryBooks] = useState<{ [key: string]: Book[] }>({});
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  // Popular books
-  const popularBooks = [
-    {
-      id: 'pop1',
-      title: 'Fourth Wing',
-      author: 'Rebecca Yarros',
-      rating: 4.5,
-    },
-    {
-      id: 'pop2',
-      title: 'Tomorrow, and Tomorrow, and Tomorrow',
-      author: 'Gabrielle Zevin',
-      rating: 4.3,
-    },
-    {
-      id: 'pop3',
-      title: 'Lessons in Chemistry',
-      author: 'Bonnie Garmus',
-      rating: 4.4,
-    },
-    {
-      id: 'pop4',
-      title: 'The Seven Husbands of Evelyn Hugo',
-      author: 'Taylor Jenkins Reid',
-      rating: 4.6,
+  const router = useRouter();
+
+  // Load popular books when component mounts
+  useEffect(() => {
+    loadPopularBooks();
+    loadRecommendedBooks();
+  }, []);
+
+  const loadPopularBooks = async () => {
+    try {
+      const books = await getPopularBooks();
+      setPopularBooks(books);
+    } catch (error) {
+      console.error('Error loading popular books:', error);
     }
-  ];
+  };
+
+  // Mock recommendations for now (later we'll base this on user's reading history)
+  const loadRecommendedBooks = async () => {
+    try {
+      const books = await searchBooks('Franz Kafka', 4);
+      setRecommendedBooks(books);
+    } catch (error) {
+      console.error('Error loading recommendations:', error);
+    }
+  };
+
+  // Handle search functionality
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      const results = await searchBooks(searchQuery, 20);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Error searching books:', error);
+      setSearchResults([]);
+    }
+    setIsSearching(false);
+  };
+
+  // Clear search and return to discover page
+  const handleBackToDiscover = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
   // Categories
   const categories = [
@@ -92,63 +95,142 @@ export default function SearchScreen() {
     { id: 'selfhelp', name: 'Self Help', color: '#F7DC6F' }
   ];
 
-  // Handle search
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      console.log('Searching for:', searchQuery);
-    }
-  };
-
-  // Render recommended book
-  const renderRecommendedBook = ({ item, index }: { item: any; index: number }) => (
+  // Render search result book
+  const renderSearchResult = ({ item }: { item: Book }) => (
     <TouchableOpacity 
-      style={[styles.bookCard, { marginLeft: index === 0 ? 24 : 12 }]}
+      style={styles.searchResultCard}
       onPress={() => router.push(`/book/${item.id}`)}
     >
-      <View style={styles.bookCover} />
-      <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
-      <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
-      <Text style={styles.recommendationReason} numberOfLines={2}>{item.reason}</Text>
-    </TouchableOpacity>
-  );
-
-  // Render popular book
-  const renderPopularBook = ({ item, index }: { item: any; index: number }) => (
-    <TouchableOpacity 
-      style={[styles.bookCard, { marginLeft: index === 0 ? 24 : 12 }]}
-      onPress={() => router.push(`/book/${item.id}`)}
-    >
-      <View style={styles.bookCover} />
-      <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
-      <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
-      <View style={styles.ratingContainer}>
-        <Text style={styles.rating}>★ {item.rating}</Text>
+      {item.coverUrl ? (
+        <Image source={{ uri: item.coverUrl }} style={styles.searchResultCover} />
+      ) : (
+        <View style={styles.searchResultCover} />
+      )}
+      <View style={styles.searchResultInfo}>
+        <Text style={styles.searchResultTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.searchResultAuthor} numberOfLines={1}>{item.author}</Text>
+        {item.rating && (
+          <Text style={styles.searchResultRating}>★ {item.rating.toFixed(1)}</Text>
+        )}
+        {item.summary && (
+          <Text style={styles.searchResultDescription} numberOfLines={2}>
+            {item.summary}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );
 
-  // Render category
-  const renderCategory = ({ item, index }: { item: any; index: number }) => (
+  // Render recommended book with real data
+  const renderRecommendedBook = ({ item, index }: { item: Book; index: number }) => (
     <TouchableOpacity 
-      style={[
-        styles.categoryCard, 
-        { 
-          marginLeft: index === 0 ? 24 : 12,
-          backgroundColor: item.color + '20', // 20% opacity
-          borderColor: item.color + '40', // 40% opacity
-        }
-      ]}
+      style={[styles.bookCard, { marginLeft: index === 0 ? 24 : 12 }]}
+      onPress={() => router.push(`/book/${item.id}`)}
     >
-      <Text style={[styles.categoryName, { color: item.color }]}>{item.name}</Text>
+      {item.coverUrl ? (
+        <Image source={{ uri: item.coverUrl }} style={styles.bookCover} />
+      ) : (
+        <View style={styles.bookCover} />
+      )}
+      <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+      <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
+      <Text style={styles.recommendationReason} numberOfLines={2}>
+        Because you read The Metamorphosis
+      </Text>
     </TouchableOpacity>
   );
+
+  // Render popular book with real data
+  const renderPopularBook = ({ item, index }: { item: Book; index: number }) => (
+    <TouchableOpacity 
+      style={[styles.bookCard, { marginLeft: index === 0 ? 24 : 12 }]}
+      onPress={() => router.push(`/book/${item.id}`)}
+    >
+      {item.coverUrl ? (
+        <Image source={{ uri: item.coverUrl }} style={styles.bookCover} />
+      ) : (
+        <View style={styles.bookCover} />
+      )}
+      <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+      <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
+      {item.rating && (
+        <View style={styles.ratingContainer}>
+          <Text style={styles.rating}>★ {item.rating.toFixed(1)}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  // renderCategory function:
+  const renderCategory = ({ item, index }: { item: any; index: number }) => {
+    const isSelected = selectedCategories.includes(item.id);
+    
+    return (
+      <TouchableOpacity 
+        style={[
+          styles.categoryCard, 
+          { 
+            marginLeft: index === 0 ? 24 : 12,
+            backgroundColor: isSelected ? item.color : item.color + '20',
+            borderColor: item.color + (isSelected ? 'FF' : '40'),
+          }
+        ]}
+        onPress={() => handleCategoryPress(item)}
+      >
+        <Text style={[
+          styles.categoryName, 
+          { color: isSelected ? '#ffffff' : item.color }
+        ]}>
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  // Load books for a specific category
+  const loadCategoryBooks = async (categoryId: string, categoryName: string) => {
+    try {
+      const books = await searchBooks(`subject:${categoryName}`, 10);
+      setCategoryBooks(prev => ({ ...prev, [categoryId]: books }));
+    } catch (error) {
+      console.error(`Error loading ${categoryName} books:`, error);
+    }
+  };
+
+  // Handle category selection
+  const handleCategoryPress = async (category: { id: string; name: string }) => {
+    if (selectedCategories.includes(category.id)) {
+      // Remove category if already selected
+      setSelectedCategories(prev => prev.filter(id => id !== category.id));
+    } else {
+      // Add category and load books
+      setSelectedCategories(prev => [...prev, category.id]);
+      if (!categoryBooks[category.id]) {
+        await loadCategoryBooks(category.id, category.name);
+      }
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       
       {/* Header with search */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover</Text>
+        <View style={styles.titleRow}>
+          {/* Back arrow - only show when there are search results */}
+          {searchResults.length > 0 && (
+            <TouchableOpacity style={styles.backButton} onPress={handleBackToDiscover}>
+              <Text style={styles.backArrow}>←</Text>
+            </TouchableOpacity>
+          )}
+          
+          <Text style={[
+            styles.headerTitle,
+            { marginLeft: searchResults.length > 0 ? 12 : 0 }
+          ]}>
+            {searchResults.length > 0 ? 'Search Results' : 'Discover'}
+          </Text>
+        </View>
         
         <View style={styles.searchContainer}>
           <TextInput
@@ -171,44 +253,93 @@ export default function SearchScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Recommended for You */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommended for You</Text>
-          <FlatList
-            data={recommendedBooks}
-            renderItem={renderRecommendedBook}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
-        </View>
+        {/* Search Results - only show when there are results */}
+        {searchResults.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Search Results</Text>
+            {isSearching ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#00674F" />
+                <Text style={styles.loadingText}>Searching...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={searchResults}
+                renderItem={renderSearchResult}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.searchResultsList}
+              />
+            )}
+          </View>
+        )}
 
-        {/* Popular Right Now */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Popular Right Now</Text>
-          <FlatList
-            data={popularBooks}
-            renderItem={renderPopularBook}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
-        </View>
+        {/* Show recommendation sections only when no search results */}
+        {searchResults.length === 0 && (
+          <>
+            {/* Recommended for You */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recommended for You</Text>
+              <FlatList
+                data={recommendedBooks}
+                renderItem={renderRecommendedBook}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+            </View>
 
-        {/* Browse Categories */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Browse Categories</Text>
-          <FlatList
-            data={categories}
-            renderItem={renderCategory}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          />
-        </View>
+            {/* Popular Right Now */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Popular Right Now</Text>
+              <FlatList
+                data={popularBooks}
+                renderItem={renderPopularBook}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+            </View>
+
+            {/* Browse Categories */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Browse Categories</Text>
+              <FlatList
+                data={categories}
+                renderItem={renderCategory}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+            </View>
+
+            {/* Add this right after the Browse Categories FlatList */}
+            {/* Selected Category Books - show horizontal rows for each selected category */}
+            {selectedCategories.map((categoryId) => {
+              const category = categories.find(cat => cat.id === categoryId);
+              const books = categoryBooks[categoryId];
+              
+              if (!category || !books || books.length === 0) return null;
+              
+              return (
+                <View key={categoryId} style={styles.section}>
+                  <Text style={styles.sectionTitle}>{category.name}</Text>
+                  <FlatList
+                    data={books}
+                    renderItem={renderPopularBook}
+                    keyExtractor={(item) => item.id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalList}
+                  />
+                </View>
+              );
+            })}
+          </>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -229,11 +360,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f0f0f',
   },
 
+  // Title row with optional back button
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  // Back button
+  backButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    fontSize: 20,
+    color: '#ffffff',
+    fontWeight: '300',
+  },
+
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 16,
     letterSpacing: -0.5,
   },
 
@@ -358,5 +509,74 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  // Search results styles
+  searchResultsList: {
+    paddingHorizontal: 24,
+  },
+
+  searchResultCard: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#161b22',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#21262d',
+  },
+
+  searchResultCover: {
+    width: 60,
+    height: 90,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 6,
+    marginRight: 16,
+  },
+
+  searchResultInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+
+  searchResultTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+
+  searchResultAuthor: {
+    color: '#888888',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+
+  searchResultRating: {
+    color: '#00674F',
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+
+  searchResultDescription: {
+    color: '#cccccc',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  // Loading states
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+
+  loadingText: {
+    color: '#888888',
+    fontSize: 14,
+    marginLeft: 8,
   },
 });

@@ -49,21 +49,21 @@ const SearchIcon = ({ color, size }: { color: string; size: number }) => (
   </View>
 );
 
-const CreateIcon = ({ color, size }: { color: string; size: number }) => (
-  <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-    <View style={{
-      width: 1.5,
-      height: size * 0.8,
-      backgroundColor: color,
-    }} />
-    <View style={{
-      position: 'absolute',
-      width: size * 0.8,
-      height: 1.5,
-      backgroundColor: color,
-    }} />
-  </View>
-);
+// const CreateIcon = ({ color, size }: { color: string; size: number }) => (
+//   <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+//     <View style={{
+//       width: 1.5,
+//       height: size * 0.8,
+//       backgroundColor: color,
+//     }} />
+//     <View style={{
+//       position: 'absolute',
+//       width: size * 0.8,
+//       height: 1.5,
+//       backgroundColor: color,
+//     }} />
+//   </View>
+// );
 
 const LibraryIcon = ({ color, size }: { color: string; size: number }) => (
   <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
@@ -146,7 +146,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Search',
+          title: 'Discover',
           tabBarIcon: ({ color, size }) => (
             <SearchIcon color={color} size={size} />
           ),
@@ -154,7 +154,7 @@ export default function TabLayout() {
       />
 
       {/* Create Tab (scan.tsx) */}
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="scan"
         options={{
           title: 'Scan',                   // Changed from "Scan" to "Create"
@@ -162,7 +162,7 @@ export default function TabLayout() {
             <CreateIcon color={color} size={size} />
           ),
         }}
-      />
+      /> */}
 
       {/* Library Tab - we'll create this later */}
       <Tabs.Screen
